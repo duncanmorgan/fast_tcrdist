@@ -125,6 +125,12 @@ class tcrdist_dataset(AnnData) :
 
         if return_results :
             return(clust)
+			
+    def filter_missing_alpha(self) :
+        df = self.obs.dropna(axis = 0, subset = ['TRA_cdr3'])
+        new_obj = tcrdist_dataset_from_df(df, organism = self.uns['species'], only_betas = False)
+        return new_obj
+
 
 def tcrdist_dataset_from_anndata(adata, organism, obs = []) :
     '''Function to initialize an object of 'tcrdist_dataset' from an anndata that has been processed via pegasus'''
@@ -188,13 +194,23 @@ def tcrdist_dataset_from_csv(csv_path, organism) :
     # needs to be done
     return(0)
 
-def tcrdist_dataset_from_df(df, organism, only_betas = False, from_adaptive = False, cdr3a_col = "TRA_crd3", cdr3b_col = "TRB_cdr3", Va_col = "TRA_v_gene", Vb_col = "TRB_v_gene") :
+def tcrdist_dataset_from_df(df, organism, only_betas = False, from_adaptive = False, cdr3a_col = "TRA_crd3", cdr3b_col = "TRB_cdr3", Va_col = "TRA_v_gene", Vb_col = "TRB_v_gene", filter_nonfunctional = False) :
     if only_betas :
         needed_data = df
         needed_data = needed_data.rename(columns = {cdr3b_col : "TRB_cdr3", Vb_col : "TRB_v_gene"})
     else :
         needed_data = df
         needed_data = needed_data.rename(columns = {cdr3a_col : "TRA_cdr3", cdr3b_col : "TRB_cdr3", Va_col: "TRA_v_gene", Vb_col : "TRB_v_gene"})
+        needed_data = needed_data.dropna(axis = 0, subset = ['TRA_cdr3'])
+        
+    if filter_nonfunctional :
+        nonfunctional = [x.find('*') > 0 for x in needed_data.TRB_cdr3]
+        needed_data = needed_data[np.invert(nonfunctional)]
+        print(str(sum(nonfunctional)) + ' nonfunctional TRB sequences removed')
+        if not only_betas:
+            nonfunctional = [x.find('*') > 0 for x in needed_data.TRA_cdr3]
+            needed_data = needed_data[np.invert(nonfunctional)]
+            print(str(sum(nonfunctional)) + ' nonfunctional TRA sequences removed')
 
     if from_adaptive :
         needed_data["TRB_v_gene"] = [gene if gene != "TRBV9-1" else "TRBV9" for gene in needed_data["TRB_v_gene"]]
